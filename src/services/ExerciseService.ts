@@ -2,8 +2,8 @@ import axios from "axios"
 import type { ApiResponse, Exercise } from "../types"
 
 const API_BASE_URL = import.meta.env.PROD
-    ? import.meta.env.API_BASE_URL_PROD
-    : import.meta.env.API_BASE_URL_LOCAL
+    ? import.meta.env.VITE_API_BASE_URL_PROD
+    : import.meta.env.VITE_API_BASE_URL_LOCAL
 
 export class ExerciseService {
     static async fetchExercises(): Promise<ApiResponse<Exercise[]>> {
