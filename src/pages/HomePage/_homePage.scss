@@ -1,0 +1,6 @@
+@use '../../styles/variables' as *;
+
+.homePage {
+    background-color: $primary-color;
+    color: $color-text;
+}

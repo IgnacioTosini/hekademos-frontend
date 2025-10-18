@@ -1,0 +1,41 @@
+@use '../../styles/variables' as *;
+
+.exerciseListContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    max-width: 1200px;
+    padding: 1rem;
+    background-color: $primary-color;
+
+    @media (max-width: 768px) {
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 0.5rem;
+    }
+
+    h3 {
+        align-self: flex-start;
+        margin-bottom: 1rem;
+        color: $color-text;
+    }
+
+    .exerciseList {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        width: 100%;
+        margin-bottom: 1rem;
+        list-style: none;
+
+        @media (max-width: 768px) {
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem;
+        }
+    }
+}
