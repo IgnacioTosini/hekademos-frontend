@@ -23,9 +23,19 @@ export const NavbarLinks = ({ isFooter, isAsideBar, onClose }: NavbarLinksProps)
             } else {
                 // Si estamos en otra página, navegar a la principal y luego hacer scroll
                 navigate('/')
+                // Usar un delay más largo y verificar que el elemento existe
                 setTimeout(() => {
-                    handleScrollTo(link.path)
-                }, 100) // Pequeño delay para asegurar que la página se cargue
+                    const checkElement = () => {
+                        const element = document.getElementById(link.path)
+                        if (element) {
+                            element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                        } else {
+                            // Si el elemento no existe aún, intentar de nuevo después de 50ms
+                            setTimeout(checkElement, 50)
+                        }
+                    }
+                    checkElement()
+                }, 200)
             }
         } else {
             // Para links externos (como ejercicios)
