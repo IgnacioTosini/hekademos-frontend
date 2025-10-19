@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import type { Exercise, ShortItem } from "../types";
 import { ExerciseContext } from "./exerciseContext";
 import { ExerciseService } from "../services/ExerciseService";
@@ -31,16 +31,57 @@ export const ExerciseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [syncStatus, setSyncStatus] = useState<string>('');
 
+    // Función mejorada para cargar shorts existentes
+    const fetchShortsFromDatabase = useCallback(async (): Promise<void> => {
+        try {
+            setSyncStatus('📋 Cargando shorts existentes...');
+            const response = await ExerciseService.fetchShorts();
+            
+            if (response.success && response.data.length > 0) {
+                const shortsFromDB = response.data.map(exercise => ({
+                    title: exercise.name,
+                    url: exercise.videoUrl
+                }));
+
+                setShorts(shortsFromDB);
+                setSyncStatus(`✅ ${shortsFromDB.length} shorts cargados`);
+                console.log(`📋 ${shortsFromDB.length} shorts obtenidos desde la BD`);
+            } else {
+                setSyncStatus('⚠️ No hay shorts en la base de datos');
+            }
+        } catch (error) {
+            console.error('Error obteniendo shorts desde BD:', error);
+            setSyncStatus('❌ Error cargando shorts - Intentando sincronización...');
+        }
+    }, []);
+
+    // 🚀 CARGAR DATOS INMEDIATAMENTE AL INICIAR
+    useEffect(() => {
+        const initializeData = async () => {
+            console.log('🚀 Inicializando datos...');
+            
+            // 1. Cargar datos existentes INMEDIATAMENTE (solo shorts para evitar duplicación)
+            await fetchShortsFromDatabase();
+            
+            // 2. Verificar sincronización en segundo plano
+            setTimeout(() => {
+                checkAndSyncInBackground();
+            }, 100); // Delay mínimo para mostrar datos existentes primero
+        };
+
+        initializeData();
+    }, [fetchShortsFromDatabase]);
+
     const filteredItems = useMemo(() => {
-        const allItems: ShortItem[] = [
-            // Convertir exercises a ShortItem
-            ...exercises.map(exercise => ({
-                title: exercise.name,
-                url: exercise.videoUrl
-            })),
-            // Agregar shorts
-            ...shorts
-        ];
+        // Usar solo shorts para evitar duplicación
+        // shorts ya contiene todos los ejercicios de tipo "short" desde la BD
+        const allItems: ShortItem[] = shorts;
+
+        console.log(`🔍 FilteredItems Debug:
+        - Shorts: ${shorts.length}
+        - Exercises: ${exercises.length}  
+        - Final items: ${allItems.length}
+        - Search term: "${searchTerm}"`);
 
         // Filtrar por término de búsqueda
         if (searchTerm) {
@@ -50,25 +91,44 @@ export const ExerciseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
 
         return allItems;
-    }, [exercises, shorts, searchTerm]);
+    }, [shorts, exercises.length, searchTerm]);
 
-    // Función: obtener shorts desde la BD
-    const fetchShortsFromDatabase = async (): Promise<ShortItem[]> => {
+    // Nueva función para verificar sincronización en segundo plano
+    const checkAndSyncInBackground = async (): Promise<void> => {
         try {
-            const response = await ExerciseService.fetchShorts();
-            if (response.success) {
-                const shortsFromDB = response.data.map(exercise => ({
-                    title: exercise.name,
-                    url: exercise.videoUrl
-                }));
+            setSyncStatus('🔄 Verificando actualizaciones...');
+            const syncStatusResponse = await ExerciseService.checkSyncStatus();
 
-                console.log(`📋 ${shortsFromDB.length} shorts obtenidos desde la BD`);
-                return shortsFromDB;
+            if (syncStatusResponse.success && syncStatusResponse.data) {
+                setSyncStatus('🔄 Sincronizando en segundo plano...');
+                
+                // Hacer sincronización sin bloquear la UI
+                ExerciseService.triggerManualSync()
+                    .then(async (syncResult) => {
+                        if (syncResult.success) {
+                            setSyncStatus(`✅ Actualizado: ${syncResult.data}`);
+                            
+                            // Actualizar datos después de la sincronización
+                            const updatedResponse = await ExerciseService.fetchShorts();
+                            if (updatedResponse.success) {
+                                const updatedShorts = updatedResponse.data.map(exercise => ({
+                                    title: exercise.name,
+                                    url: exercise.videoUrl
+                                }));
+                                setShorts(updatedShorts);
+                            }
+                        }
+                    })
+                    .catch((error) => {
+                        console.error('Error en sincronización de fondo:', error);
+                        setSyncStatus('⚠️ Error en actualización - Usando datos existentes');
+                    });
+            } else {
+                setSyncStatus('✅ Datos actualizados');
             }
-            return [];
         } catch (error) {
-            console.error('Error obteniendo shorts desde BD:', error);
-            return [];
+            console.error('Error verificando sincronización:', error);
+            setSyncStatus('✅ Usando datos existentes');
         }
     };
 
@@ -79,33 +139,51 @@ export const ExerciseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
         try {
             // 1. Obtener datos existentes de la BD
-            const existingShorts = await fetchShortsFromDatabase();
-            setShorts(existingShorts);
+            setSyncStatus('📋 Cargando shorts existentes...');
+            const response = await ExerciseService.fetchShorts();
+            
+            if (response.success && response.data.length > 0) {
+                const existingShorts = response.data.map(exercise => ({
+                    title: exercise.name,
+                    url: exercise.videoUrl
+                }));
+                setShorts(existingShorts);
+                setSyncStatus(`✅ ${existingShorts.length} shorts cargados`);
 
-            // 2. Verificar si necesita sincronización (desde backend)
-            setSyncStatus('🔄 Verificando si necesita sincronización...');
-            const syncStatusResponse = await ExerciseService.checkSyncStatus();
-
-            if (!syncStatusResponse.success || !syncStatusResponse.data) {
-                if (existingShorts.length > 0) {
-                    setSyncStatus('✅ Datos actualizados (no requiere sincronización)');
-                    console.log('📋 Usando datos existentes de la BD');
+                // Si hay datos, verificar si necesita sincronización
+                try {
+                    const syncStatusResponse = await ExerciseService.checkSyncStatus();
+                    if (!syncStatusResponse.success || !syncStatusResponse.data) {
+                        setSyncStatus('✅ Datos actualizados (no requiere sincronización)');
+                        console.log('📋 Usando datos existentes de la BD');
+                        return;
+                    }
+                } catch (syncError) {
+                    // Si hay error verificando estado, usar datos existentes
+                    console.error('Error verificando estado de sincronización:', syncError);
+                    setSyncStatus('✅ Usando datos existentes');
                     return;
                 }
             }
 
-            // 3. Sincronizar con YouTube (llamada al backend)
+            // 2. Sincronizar con YouTube (llamada al backend)
             setSyncStatus('🔄 Sincronizando con YouTube...');
             const syncResult = await ExerciseService.triggerManualSync();
 
             if (syncResult.success) {
                 setSyncStatus(`✅ Sincronización completada: ${syncResult.data}`);
 
-                // 4. Actualizar datos locales después de la sincronización
-                const updatedShorts = await fetchShortsFromDatabase();
-                setShorts(updatedShorts);
+                // 3. Actualizar datos locales después de la sincronización
+                const updatedResponse = await ExerciseService.fetchShorts();
+                if (updatedResponse.success) {
+                    const updatedShorts = updatedResponse.data.map(exercise => ({
+                        title: exercise.name,
+                        url: exercise.videoUrl
+                    }));
+                    setShorts(updatedShorts);
+                }
 
-                // 5. Actualizar exercises completos
+                // 4. Actualizar exercises completos
                 await fetchExercises();
             } else {
                 setSyncStatus(`⚠️ ${syncResult.message} - Usando datos existentes`);
@@ -133,7 +211,6 @@ export const ExerciseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
 
     const fetchExercises = async () => {
-        setIsLoading(true);
         try {
             const response = await ExerciseService.fetchExercises();
             if (response.success) {
@@ -142,8 +219,6 @@ export const ExerciseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             }
         } catch (error) {
             console.error('Error fetching exercises:', error);
-        } finally {
-            setIsLoading(false);
         }
     };
 
