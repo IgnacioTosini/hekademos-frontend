@@ -1,6 +1,7 @@
 @use '../../styles/variables' as *;
 
 .philosophyContainer {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -9,6 +10,7 @@
     background-color: $quaternary-color;
     color: $color-text;
     text-align: center;
+    overflow: hidden;
 
     .philosophyTitle {
         font-size: clamp($font-size-xxlarge, 10vw, $font-size-xxxlarge);
@@ -28,7 +30,7 @@
 
     .philosophyDescription {
         color: $color-text-secondary;
-        font-size: $font-size-medium-large;
+        font-size: clamp($font-size-medium, 10vw, $font-size-medium-large);
         max-width: 800px;
         margin-bottom: 3rem;
         line-height: 1.6;
