@@ -64,22 +64,6 @@ export class ExerciseService {
         }
     }
 
-    static async fetchShorts(): Promise<ApiResponse<Exercise[]>> {
-        try {
-            console.log('🔍 Fetching shorts from database...');
-            const response = await axios.get<ApiResponse<Exercise[]>>(`${API_BASE_URL}/shorts`);
-            console.log(`📊 Response:`, response.data);
-            return response.data;
-        } catch (error) {
-            console.error('Error fetching shorts:', error);
-            return {
-                success: false,
-                message: 'Error al obtener shorts',
-                data: []
-            };
-        }
-    }
-
     static async checkSyncStatus(): Promise<ApiResponse<boolean>> {
         try {
             const response = await axios.get<ApiResponse<boolean>>(`${API_BASE_URL}/sync-status`);
@@ -152,6 +136,63 @@ export class ExerciseService {
                 success: false,
                 message: 'Error al iniciar sincronización manual',
                 data: ''
+            };
+        }
+    }
+
+    // ✅ NUEVO MÉTODO: Obtener shorts desde BD (más rápido)
+    static async fetchShortsFromDB(): Promise<ApiResponse<Exercise[]>> {
+        try {
+            console.log('⚡ Obteniendo shorts desde BD (rápido)...');
+            const response = await axios.get<ApiResponse<Exercise[]>>(`${API_BASE_URL}/shorts`);
+            console.log(`📊 Shorts desde BD:`, response.data.data?.length || 0);
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching shorts from DB:', error);
+            return {
+                success: false,
+                message: 'Error al obtener shorts desde BD',
+                data: []
+            };
+        }
+    }
+
+    // ✅ NUEVO MÉTODO: Sincronización en segundo plano
+    static async backgroundSync(): Promise<ApiResponse<string>> {
+        try {
+            console.log('🔄 Iniciando sincronización en segundo plano...');
+            const response = await axios.post<ApiResponse<string>>(`${API_BASE_URL}/background-sync`);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Error en background sync:', error);
+            return {
+                success: false,
+                message: 'Error en sincronización de segundo plano',
+                data: ''
+            };
+        }
+    }
+
+    // ✅ MODIFICAR: fetchShorts para usar BD primero
+    static async fetchShorts(): Promise<ApiResponse<Exercise[]>> {
+        try {
+            // 1. Mostrar contenido de BD inmediatamente
+            const dbResponse = await this.fetchShortsFromDB();
+
+            // 2. Iniciar sincronización en segundo plano (no bloquear UI)
+            this.backgroundSync().then(syncResult => {
+                if (syncResult.success) {
+                    console.log('✅ Sincronización en segundo plano completada');
+                }
+            });
+
+            return dbResponse;
+        } catch (error) {
+            console.error('Error in optimized fetchShorts:', error);
+            return {
+                success: false,
+                message: 'Error al obtener shorts optimizado',
+                data: []
             };
         }
     }
